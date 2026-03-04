@@ -1,0 +1,122 @@
+# ---------------------------
+
+# Environment & Secrets
+
+# ---------------------------
+
+.env
+.env.*
+*.env
+
+# API keys / credentials
+
+secrets.json
+credentials.json
+*.pem
+*.key
+
+# ---------------------------
+
+# Python
+
+# ---------------------------
+
+**pycache**/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+
+venv/
+.env/
+.venv/
+env/
+ENV/
+
+# Python build artifacts
+
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+
+# Python testing / coverage
+
+.coverage
+.coverage.*
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+
+# ---------------------------
+
+# Logs
+
+# ---------------------------
+
+*.log
+logs/
+tmp/
+
+# ---------------------------
+
+# MacOS system files
+
+# ---------------------------
+
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ---------------------------
+
+# VSCode / IDE
+
+# ---------------------------
+
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ---------------------------
+
+# Node (if using n8n scripts)
+
+# ---------------------------
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---------------------------
+
+# Data / generated artifacts
+
+# ---------------------------
+
+*.csv
+*.sqlite
+*.db
+*.parquet
+data/
+outputs/
+
+# ---------------------------
+
+# Jupyter
+
+# ---------------------------
+
+.ipynb_checkpoints/
+
+# ---------------------------
+
+# Local configuration
+
+# ---------------------------
+
+*.local
+EOF
