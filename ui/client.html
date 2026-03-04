@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Agentic Amazon Content Generator</title>
+  <style>
+    :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+    body { margin: 0; background:#0b0f17; color:#e7eefc; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 28px 18px 60px; }
+    h1 { font-size: 20px; margin: 0 0 6px; }
+    .sub { color:#a9b7d0; margin: 0 0 18px; }
+    .card { background:#111828; border:1px solid #22304a; border-radius: 14px; padding: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+    label { display:block; font-size: 13px; color:#a9b7d0; margin: 12px 0 6px; }
+    input[type="text"], input[type="url"], textarea {
+      width:100%; box-sizing:border-box;
+      background:#0d1424; border:1px solid #22304a; color:#e7eefc;
+      padding:10px 12px; border-radius: 10px; outline: none;
+    }
+    input[type="file"] { width: 100%; color:#a9b7d0; }
+    select {
+      background:#0d1424; border:1px solid #22304a; color:#e7eefc;
+      padding:10px 12px; border-radius: 10px; outline: none;
+      width: 240px; cursor: pointer; appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%23a9b7d0' d='M6 8L0 0h12z'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 12px center;
+      padding-right: 32px;
+    }
+    select:focus { border-color: #2b6cff; }
+    .lang-row { margin-top: 12px; }
+    .lang-row label { margin-bottom: 6px; }
+    .lang-flags { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    .lang-flag {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 999px;
+      border: 1px solid #22304a; background: #0d1424;
+      cursor: pointer; font-size: 13px; color: #a9b7d0;
+      transition: border-color .15s, color .15s, background .15s;
+      user-select: none;
+    }
+    .lang-flag:hover { border-color: #2b6cff; color: #e7eefc; }
+    .lang-flag.active { border-color: #2b6cff; background: #1a2a4a; color: #8fb3ff; font-weight: 600; }
+    .lang-flag .flag { font-size: 16px; }
+    .row { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .hint { font-size: 12px; color:#7f93b8; margin-top: 6px; }
+    .actions { display:flex; gap: 10px; align-items:center; margin-top: 14px; }
+    button {
+      background:#2b6cff; border:0; color:white; padding:10px 14px; border-radius: 10px;
+      cursor:pointer; font-weight: 600;
+    }
+    button:disabled { opacity: .6; cursor:not-allowed; }
+    .status { font-size: 13px; color:#a9b7d0; }
+    .error { color:#ffb4b4; white-space: pre-wrap; }
+    .ok { color:#b8ffcc; }
+    .out { margin-top: 16px; }
+    .section { margin-top: 14px; padding-top: 14px; border-top:1px solid #22304a; }
+    .k { color:#a9b7d0; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    .v { margin-top: 8px; white-space: pre-wrap; }
+    ul { margin: 8px 0 0 18px; }
+    code { background:#0d1424; border:1px solid #22304a; padding:2px 6px; border-radius: 8px; }
+    a { color:#8fb3ff; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .pill { display:inline-block; padding: 4px 10px; border-radius: 999px; border:1px solid #22304a; font-size: 12px; color:#a9b7d0; }
+    .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    .small { font-size: 12px; color:#7f93b8; }
+    .lang-badge { display:inline-block; padding: 2px 8px; border-radius: 999px; background:#1a2a4a; border:1px solid #2b6cff; color:#8fb3ff; font-size: 12px; margin-left: 6px; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #22304a; padding: 8px; vertical-align: top; }
+    th { text-align: left; color:#a9b7d0; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+    td { color:#e7eefc; font-size: 13px; }
+
+    /* n8n status pill */
+    .n8n-ok { color: #b8ffcc; }
+    .n8n-skip { color: #7f93b8; }
+    .n8n-err { color: #ffb4b4; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Agentic Amazon Content Generator</h1>
+    <p class="sub">URLs mode or upload mode. Submits multipart to <code>/generate_upload</code> and renders the run output.</p>
+
+    <div class="card">
+      <form id="genForm">
+        <div class="row">
+          <div>
+            <label for="amazon_url">Amazon URL (optional)</label>
+            <input id="amazon_url" name="amazon_url" type="url" placeholder="https://www.amazon.de/dp/..." />
+          </div>
+          <div>
+            <label for="pdp_url">PDP URL (optional)</label>
+            <input id="pdp_url" name="pdp_url" type="url" placeholder="https://brand.com/product/..." />
+          </div>
+        </div>
+
+        <!-- ── Language selector ── -->
+        <div class="lang-row">
+          <label>Output language</label>
+          <div class="lang-flags" id="langPicker">
+            <div class="lang-flag active" data-lang="en"><span class="flag">🇬🇧</span> English</div>
+            <div class="lang-flag" data-lang="de"><span class="flag">🇩🇪</span> Deutsch</div>
+            <div class="lang-flag" data-lang="fr"><span class="flag">🇫🇷</span> Français</div>
+            <div class="lang-flag" data-lang="es"><span class="flag">🇪🇸</span> Español</div>
+          </div>
+          <!-- Hidden input that actually gets submitted -->
+          <input type="hidden" id="output_lang" name="output_lang" value="en" />
+        </div>
+
+        <label for="product_info_file">Product info file (required if no URLs)</label>
+        <input id="product_info_file" name="product_info_file" type="file" accept=".txt,.md,.rtf,.csv,.json" />
+        <div class="hint">Upload a text-based product brief/spec if this is a new product with no URLs.</div>
+
+        <label for="helium10_csv">Helium 10 CSV (optional)</label>
+        <input id="helium10_csv" name="helium10_csv" type="file" accept=".csv" />
+        <div class="hint">If provided, backend will parse and preview up to 20 rows.</div>
+
+        <label for="reviews_file">Customer reviews file (optional)</label>
+        <input id="reviews_file" name="reviews_file" type="file" accept=".txt,.csv,.md" />
+        <div class="hint">Optional: paste-exported reviews. Used to suggest FAQ questions (answers still evidence-checked).</div>
+
+        <div class="actions">
+          <button id="submitBtn" type="submit">Generate</button>
+          <span id="status" class="status">Ready.</span>
+        </div>
+
+        <div id="err" class="error" style="margin-top:10px; display:none;"></div>
+      </form>
+    </div>
+
+    <div id="output" class="out card" style="display:none;"></div>
+  </div>
+
+  <script>
+    // ── Language picker ──────────────────────────────────────────────
+    const langPicker = document.getElementById('langPicker');
+    const langInput  = document.getElementById('output_lang');
+
+    langPicker.addEventListener('click', (e) => {
+      const tile = e.target.closest('.lang-flag');
+      if (!tile) return;
+      langPicker.querySelectorAll('.lang-flag').forEach(t => t.classList.remove('active'));
+      tile.classList.add('active');
+      langInput.value = tile.dataset.lang;
+    });
+
+    // ── Form submit ──────────────────────────────────────────────────
+    const form      = document.getElementById('genForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const statusEl  = document.getElementById('status');
+    const errEl     = document.getElementById('err');
+    const outEl     = document.getElementById('output');
+
+    function showError(msg) { errEl.style.display = 'block'; errEl.textContent = msg; }
+    function clearError()   { errEl.style.display = 'none';  errEl.textContent = ''; }
+    function setStatus(msg) { statusEl.textContent = msg; }
+
+    function escapeHtml(s) {
+      return String(s ?? '')
+        .replaceAll('&','&amp;').replaceAll('<','&lt;')
+        .replaceAll('>','&gt;').replaceAll('"','&quot;')
+        .replaceAll("'","&#039;");
+    }
+
+    function asList(items) {
+      if (items === null || items === undefined) return '<div class="small mono">null</div>';
+      if (Array.isArray(items)) {
+        if (items.length === 0) return '<div class="small mono">[]</div>';
+        return '<ul>' + items.map(x => {
+          if (x && typeof x === "object" && ("q" in x) && ("a" in x))
+            return `<li><strong>${escapeHtml(x.q)}</strong><br/>${escapeHtml(x.a)}</li>`;
+          return `<li>${escapeHtml(x)}</li>`;
+        }).join('') + '</ul>';
+      }
+      return `<div class="v">${escapeHtml(items)}</div>`;
+    }
+
+    function renderHeliumPreview(rows) {
+      if (!Array.isArray(rows) || rows.length === 0) return '<div class="small mono">[]</div>';
+      const first = rows[0];
+      if (first && typeof first === 'object' && !Array.isArray(first)) {
+        const cols = Object.keys(first);
+        const thead = `<tr>${cols.map(c => `<th>${escapeHtml(c)}</th>`).join('')}</tr>`;
+        const tbody = rows.map(r => `<tr>${cols.map(c => `<td>${escapeHtml(r[c])}</td>`).join('')}</tr>`).join('');
+        return `<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+      }
+      return `<div class="v mono small">${escapeHtml(JSON.stringify(rows, null, 2))}</div>`;
+    }
+
+    const LANG_LABELS = { en: '🇬🇧 English', de: '🇩🇪 Deutsch', fr: '🇫🇷 Français', es: '🇪🇸 Español' };
+
+    function renderN8nStatus(n8n) {
+      if (!n8n) return '<span class="small mono">—</span>';
+      if (n8n.skipped) return `<span class="n8n-skip pill">Skipped — ${escapeHtml(n8n.reason ?? '')}</span>`;
+      if (n8n.ok)      return `<span class="n8n-ok pill">✓ Sent (HTTP ${escapeHtml(String(n8n.status_code ?? ''))})</span>`;
+      return `<span class="n8n-err pill">✗ Failed — ${escapeHtml(n8n.error ?? 'unknown')}</span>`;
+    }
+
+    function renderResult(data) {
+      const runId    = data.run_id ?? '';
+      const runLink  = runId ? `/runs/${encodeURIComponent(runId)}` : '';
+      const viewRun  = runLink
+        ? `<a href="${runLink}" target="_blank" rel="noreferrer">View run JSON</a>`
+        : '<span class="small">no run_id returned</span>';
+
+      const validation      = data.validation_status ?? '';
+      const validationClass = String(validation).toUpperCase() === 'PASS' ? 'ok' : '';
+      const langCode        = data.output_lang ?? '';
+      const langLabel       = LANG_LABELS[langCode] ?? langCode;
+      const heliumRows      = data.helium10_rows_preview ?? [];
+
+      outEl.innerHTML = `
+        <div class="grid2">
+          <div>
+            <div class="k">Run</div>
+            <div class="v">
+              <span class="pill mono">${escapeHtml(runId || '—')}</span>
+              &nbsp; ${viewRun}
+            </div>
+          </div>
+          <div>
+            <div class="k">Validation</div>
+            <div class="v ${validationClass}">
+              <span class="pill">${escapeHtml(validation || '—')}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="k">Output language</div>
+          <div class="v">
+            <span class="lang-badge">${escapeHtml(langLabel || langCode || '—')}</span>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="k">n8n Status</div>
+          <div class="v">${renderN8nStatus(data.n8n_status)}</div>
+        </div>
+
+        <div class="section">
+          <div class="k">Amazon Title</div>
+          <div class="v">${escapeHtml(data.amazon_title ?? '')}</div>
+        </div>
+
+        <div class="section">
+          <div class="k">Bullets</div>
+          ${asList(data.bullets)}
+        </div>
+
+        <div class="section">
+          <div class="k">Description</div>
+          <div class="v">${escapeHtml(data.description ?? '')}</div>
+        </div>
+
+        <div class="section">
+          <div class="k">FAQs</div>
+          ${asList(data.faqs)}
+        </div>
+
+        <div class="section">
+          <div class="k">AI Visibility Snippets</div>
+          ${asList(data.ai_visibility_snippets)}
+        </div>
+
+        <div class="section">
+          <div class="k">Helium 10 preview (max 20 rows)</div>
+          ${renderHeliumPreview(heliumRows)}
+        </div>
+
+        <div class="section">
+          <div class="k">Validation report</div>
+          <div class="v mono small">${escapeHtml(JSON.stringify(data.validation_report ?? null, null, 2))}</div>
+        </div>
+
+        <div class="section">
+          <div class="k">Guidelines used</div>
+          <div class="v mono small">${escapeHtml(JSON.stringify(data.guidelines_used ?? null, null, 2))}</div>
+        </div>
+      `;
+
+      outEl.style.display = 'block';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearError();
+      outEl.style.display = 'none';
+
+      const fd = new FormData();
+
+      const amazonUrl       = document.getElementById('amazon_url').value.trim();
+      const pdpUrl          = document.getElementById('pdp_url').value.trim();
+      const productInfoFile = document.getElementById('product_info_file').files[0] || null;
+      const heliumCsv       = document.getElementById('helium10_csv').files[0] || null;
+      const reviewsFile     = document.getElementById('reviews_file').files[0] || null;
+      const outputLang      = langInput.value || 'en';   // ← language from picker
+
+      if (amazonUrl)       fd.append('amazon_url', amazonUrl);
+      if (pdpUrl)          fd.append('pdp_url', pdpUrl);
+      if (productInfoFile) fd.append('product_info_file', productInfoFile);
+      if (heliumCsv)       fd.append('helium10_csv', heliumCsv);
+      if (reviewsFile)     fd.append('reviews_file', reviewsFile);
+      fd.set('output_lang', outputLang);   // ← always sent
+
+      if (!amazonUrl && !pdpUrl && !productInfoFile) {
+        showError('Provide at least one of: Amazon URL, PDP URL, or a product info file.');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      setStatus(`Submitting… (${outputLang.toUpperCase()})`);
+
+      try {
+        const res  = await fetch('/generate_upload', { method: 'POST', body: fd });
+        const text = await res.text();
+
+        let data;
+        try { data = JSON.parse(text); }
+        catch { throw new Error(`Non-JSON response (${res.status}). Body:\n\n${text}`); }
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}\n\n${JSON.stringify(data, null, 2)}`);
+
+        setStatus('Done.');
+        renderResult(data);
+      } catch (err) {
+        setStatus('Error.');
+        showError(err?.message ? String(err.message) : String(err));
+      } finally {
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

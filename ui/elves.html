@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Elves Stream</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; max-width: 980px; }
+    input, button { font: inherit; }
+    .top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .muted { color: #666; font-size: 14px; }
+    .card { border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin-top: 16px; }
+    .log { display: grid; gap: 10px; margin-top: 12px; }
+    .ev { border: 1px solid #eee; border-radius: 10px; padding: 10px 12px; }
+    .hdr { display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+    .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #f3f4f6; }
+    pre { background: #0b1020; color: #d7e1ff; padding: 12px; border-radius: 10px; overflow: auto; }
+    .ok { color: #0a7a2f; font-weight: 600; }
+    .bad { color: #b00020; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Elves Stream</h1>
+  <p class="muted">This page polls <code>/runs/{run_id}</code> and shows the event log (archivist → scribe → guard).</p>
+
+  <div class="top">
+    <label>run_id</label>
+    <input id="run_id" style="width: 520px;" placeholder="paste run_id here" />
+    <button id="btnWatch">Watch</button>
+    <span id="status" class="muted"></span>
+  </div>
+
+  <div class="card">
+    <h2>Run</h2>
+    <div id="runmeta" class="muted">No run loaded.</div>
+    <div class="log" id="log"></div>
+  </div>
+
+  <div class="card">
+    <h2>Result</h2>
+    <pre id="result">{}</pre>
+  </div>
+
+  <script>
+    const API_BASE = ""; // same origin
+    const runInput = document.getElementById("run_id");
+    const statusEl = document.getElementById("status");
+    const runMetaEl = document.getElementById("runmeta");
+    const logEl = document.getElementById("log");
+    const resultEl = document.getElementById("result");
+
+    // allow ?run_id=... deep link
+    const params = new URLSearchParams(location.search);
+    if (params.get("run_id")) runInput.value = params.get("run_id");
+
+    let timer = null;
+
+    function render(run) {
+      const vs = run?.result?.validation_status || "—";
+      const cls = (vs === "PASS") ? "ok" : (vs === "FAIL" ? "bad" : "");
+
+      runMetaEl.innerHTML = `
+        <div><b>status:</b> ${run.status}</div>
+        <div><b>created_at:</b> ${run.created_at}</div>
+        <div><b>validation_status:</b> <span class="${cls}">${vs}</span></div>
+      `;
+
+      const events = run.event_log || [];
+      logEl.innerHTML = "";
+      for (const ev of events) {
+        const meta = ev.meta && Object.keys(ev.meta).length ? JSON.stringify(ev.meta) : "";
+        const div = document.createElement("div");
+        div.className = "ev";
+        div.innerHTML = `
+          <div class="hdr">
+            <span class="tag">${ev.elf}</span>
+            <span class="tag">${ev.stage}</span>
+            <span class="muted">${ev.ts}</span>
+          </div>
+          <div style="margin-top:6px;">${ev.message}</div>
+          ${meta ? `<pre style="margin-top:8px;">${meta}</pre>` : ""}
+        `;
+        logEl.appendChild(div);
+      }
+
+      resultEl.textContent = JSON.stringify(run.result || {}, null, 2);
+    }
+
+    async function poll() {
+      const runId = runInput.value.trim();
+      if (!runId) return;
+
+      try {
+        const res = await fetch(`${API_BASE}/runs/${encodeURIComponent(runId)}`);
+        if (!res.ok) {
+          statusEl.textContent = `Not found (${res.status}).`;
+          return;
+        }
+        const run = await res.json();
+        render(run);
+
+        statusEl.textContent = `Updated: ${new Date().toLocaleTimeString()}`;
+
+        // stop polling once DONE/ERROR
+        if (run.status === "DONE" || run.status === "ERROR") {
+          clearInterval(timer);
+          timer = null;
+          statusEl.textContent += " (stopped)";
+        }
+      } catch (e) {
+        statusEl.textContent = "Error polling run.";
+      }
+    }
+
+    document.getElementById("btnWatch").addEventListener("click", () => {
+      if (timer) { clearInterval(timer); timer = null; }
+      statusEl.textContent = "Watching...";
+      poll();
+      timer = setInterval(poll, 800);
+    });
+
+    // auto-start if run_id is present
+    if (runInput.value.trim()) {
+      document.getElementById("btnWatch").click();
+    }
+  </script>
+</body>
+</html>
