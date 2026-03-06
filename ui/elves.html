@@ -1,128 +1,691 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Elves Stream</title>
-  <style>
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; max-width: 980px; }
-    input, button { font: inherit; }
-    .top { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .muted { color: #666; font-size: 14px; }
-    .card { border: 1px solid #ddd; border-radius: 10px; padding: 16px; margin-top: 16px; }
-    .log { display: grid; gap: 10px; margin-top: 12px; }
-    .ev { border: 1px solid #eee; border-radius: 10px; padding: 10px 12px; }
-    .hdr { display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; }
-    .tag { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #f3f4f6; }
-    pre { background: #0b1020; color: #d7e1ff; padding: 12px; border-radius: 10px; overflow: auto; }
-    .ok { color: #0a7a2f; font-weight: 600; }
-    .bad { color: #b00020; font-weight: 600; }
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Elf Workshop</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#0d0d1a;font-family:'Courier New',monospace;display:flex;flex-direction:column;height:100vh;overflow:hidden;color:#e8e0c8;}
+.hud{background:#0d0d1a;border-bottom:2px solid #4a3a1a;padding:6px 14px;display:flex;align-items:center;gap:16px;flex-shrink:0;z-index:20;}
+.hud-title{font-size:13px;font-weight:bold;color:#ffd700;letter-spacing:.1em;text-shadow:0 0 10px rgba(255,215,0,.4);}
+.hud-stat{font-size:11px;color:#888;}
+.hud-stat b{color:#ffd700;}
+.hud-right{margin-left:auto;display:flex;gap:8px;align-items:center;}
+.run-input{background:rgba(0,0,0,.6);border:1px solid #4a3a1a;color:#e8e0c8;font-family:'Courier New',monospace;font-size:11px;padding:4px 8px;border-radius:3px;outline:none;width:230px;}
+.run-input:focus{border-color:#ffd700;}
+.watch-btn{background:#3a2800;border:2px solid #ffd700;color:#ffd700;font-family:'Courier New',monospace;font-size:11px;font-weight:bold;padding:4px 12px;border-radius:3px;cursor:pointer;}
+.watch-btn:hover{background:#5a4010;}
+.pip{font-size:10px;padding:3px 10px;border-radius:3px;border:1px solid;font-weight:bold;letter-spacing:.08em;}
+.pip.idle{border-color:#444;color:#444;}
+.pip.running{border-color:#ffd700;color:#ffd700;animation:blink 1s infinite;}
+.pip.done{border-color:#4c4;color:#4c4;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.main{flex:1;display:flex;overflow:hidden;}
+#gameCanvas{display:block;flex:1;}
+.log-panel{width:230px;flex-shrink:0;background:#08080f;border-left:2px solid #2a1a08;display:flex;flex-direction:column;}
+.log-title{padding:8px 10px;font-size:10px;font-weight:bold;color:#ffd700;border-bottom:1px solid #2a1a08;letter-spacing:.1em;}
+.log-scroll{flex:1;overflow-y:auto;display:flex;flex-direction:column;}
+.log-scroll::-webkit-scrollbar{width:3px;}
+.log-scroll::-webkit-scrollbar-thumb{background:#2a1a08;}
+.log-row{padding:5px 8px;font-size:10px;line-height:1.4;border-bottom:1px solid rgba(42,26,8,.3);animation:li .2s ease both;}
+@keyframes li{from{opacity:0;transform:translateX(4px)}to{opacity:1;transform:none}}
+.lb{display:inline-block;font-size:8px;font-weight:bold;padding:1px 4px;border-radius:2px;margin-right:4px;vertical-align:middle;}
+.lb.archivist{background:#3a1a00;color:#ffaa44;}
+.lb.scribe{background:#001a2a;color:#44ccff;}
+.lb.guard{background:#001a0a;color:#44ee88;}
+.lb.planner{background:#0a001a;color:#cc88ff;}
+.lm{color:rgba(232,224,200,.7);}
+.lt{font-size:9px;color:rgba(232,224,200,.25);float:right;}
+.val-badge{margin:6px 8px;padding:5px;border-radius:3px;border:2px solid;font-weight:bold;font-size:11px;text-align:center;display:none;}
+.val-badge.pass{border-color:#4c4;color:#4c4;display:block;}
+.val-badge.fail{border-color:#f64;color:#f64;display:block;}
+</style>
 </head>
 <body>
-  <h1>Elves Stream</h1>
-  <p class="muted">This page polls <code>/runs/{run_id}</code> and shows the event log (archivist → scribe → guard).</p>
 
-  <div class="top">
-    <label>run_id</label>
-    <input id="run_id" style="width: 520px;" placeholder="paste run_id here" />
-    <button id="btnWatch">Watch</button>
-    <span id="status" class="muted"></span>
+<div class="hud">
+  <div class="hud-title">⚔ ELF WORKSHOP</div>
+  <div class="hud-stat">Events: <b id="hudEvents">0</b></div>
+  <div class="hud-stat">Time: <b id="hudClock">0s</b></div>
+  <div class="hud-right">
+    <input class="run-input" id="run_id" placeholder="paste run_id…"/>
+    <button class="watch-btn" id="btnWatch">▶ WATCH</button>
+    <span class="pip idle" id="pip">IDLE</span>
   </div>
+</div>
 
-  <div class="card">
-    <h2>Run</h2>
-    <div id="runmeta" class="muted">No run loaded.</div>
-    <div class="log" id="log"></div>
+<div class="main">
+  <canvas id="gameCanvas"></canvas>
+  <div class="log-panel">
+    <div class="log-title">📜 MISSION LOG</div>
+    <div class="log-scroll" id="logScroll">
+      <div class="log-row" style="color:rgba(232,224,200,.3);font-style:italic;padding:12px 8px">Awaiting run_id…</div>
+    </div>
+    <div class="val-badge" id="valBadge"></div>
   </div>
+</div>
 
-  <div class="card">
-    <h2>Result</h2>
-    <pre id="result">{}</pre>
-  </div>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
 
-  <script>
-    const API_BASE = ""; // same origin
-    const runInput = document.getElementById("run_id");
-    const statusEl = document.getElementById("status");
-    const runMetaEl = document.getElementById("runmeta");
-    const logEl = document.getElementById("log");
-    const resultEl = document.getElementById("result");
+// ─── WORLD STATE ───────────────────────────────
+// All positions in PIXELS, not tiles
+// Canvas is dynamically sized
 
-    // allow ?run_id=... deep link
-    const params = new URLSearchParams(location.search);
-    if (params.get("run_id")) runInput.value = params.get("run_id");
+let W = 800, H = 550; // updated on resize
 
-    let timer = null;
+// ── ZONES (defined as fractions of W/H, computed on resize) ──
+// Library corner (top-left), Scriptorium (center), Chamber (top-right)
+let zones = {};
+function computeZones() {
+  zones = {
+    library:      { x: W*0.08, y: H*0.10, w: W*0.25, h: H*0.45 },
+    scriptorium:  { x: W*0.38, y: H*0.10, w: W*0.25, h: H*0.45 },
+    chamber:      { x: W*0.68, y: H*0.10, w: W*0.25, h: H*0.45 },
+    hallway:      { x: 0,      y: H*0.60, w: W,       h: H*0.35 },
+  };
+}
 
-    function render(run) {
-      const vs = run?.result?.validation_status || "—";
-      const cls = (vs === "PASS") ? "ok" : (vs === "FAIL" ? "bad" : "");
+// ── ELVES ─────────────────────────────────────
+const ELVES = {
+  archivist: {
+    name: 'ARCHIVIST', color: '#ff8844', hair: '#4a2800',
+    x: 120, y: 480, tx: 120, ty: 480,
+    homeX: 120, homeY: 480,
+    action: 'idle',   // idle | walk | read | write | inspect | done
+    facing: 1,        // -1=left, 1=right
+    tick: 0,
+    speech: '', speechAge: 0,
+  },
+  scribe: {
+    name: 'SCRIBE', color: '#4488ff', hair: '#222266',
+    x: 380, y: 480, tx: 380, ty: 480,
+    homeX: 380, homeY: 480,
+    action: 'idle', facing: 1, tick: 0, speech: '', speechAge: 0,
+  },
+  guard: {
+    name: 'GUARD', color: '#44cc44', hair: '#1a4a1a',
+    x: 640, y: 480, tx: 640, ty: 480,
+    homeX: 640, homeY: 480,
+    action: 'idle', facing: 1, tick: 0, speech: '', speechAge: 0,
+  },
+};
 
-      runMetaEl.innerHTML = `
-        <div><b>status:</b> ${run.status}</div>
-        <div><b>created_at:</b> ${run.created_at}</div>
-        <div><b>validation_status:</b> <span class="${cls}">${vs}</span></div>
-      `;
+// ── PROPS (books flying, quill writing, etc.) ──
+const props = []; // { type, x, y, vx, vy, age, maxAge, data }
 
-      const events = run.event_log || [];
-      logEl.innerHTML = "";
-      for (const ev of events) {
-        const meta = ev.meta && Object.keys(ev.meta).length ? JSON.stringify(ev.meta) : "";
-        const div = document.createElement("div");
-        div.className = "ev";
-        div.innerHTML = `
-          <div class="hdr">
-            <span class="tag">${ev.elf}</span>
-            <span class="tag">${ev.stage}</span>
-            <span class="muted">${ev.ts}</span>
-          </div>
-          <div style="margin-top:6px;">${ev.message}</div>
-          ${meta ? `<pre style="margin-top:8px;">${meta}</pre>` : ""}
-        `;
-        logEl.appendChild(div);
-      }
-
-      resultEl.textContent = JSON.stringify(run.result || {}, null, 2);
-    }
-
-    async function poll() {
-      const runId = runInput.value.trim();
-      if (!runId) return;
-
-      try {
-        const res = await fetch(`${API_BASE}/runs/${encodeURIComponent(runId)}`);
-        if (!res.ok) {
-          statusEl.textContent = `Not found (${res.status}).`;
-          return;
-        }
-        const run = await res.json();
-        render(run);
-
-        statusEl.textContent = `Updated: ${new Date().toLocaleTimeString()}`;
-
-        // stop polling once DONE/ERROR
-        if (run.status === "DONE" || run.status === "ERROR") {
-          clearInterval(timer);
-          timer = null;
-          statusEl.textContent += " (stopped)";
-        }
-      } catch (e) {
-        statusEl.textContent = "Error polling run.";
-      }
-    }
-
-    document.getElementById("btnWatch").addEventListener("click", () => {
-      if (timer) { clearInterval(timer); timer = null; }
-      statusEl.textContent = "Watching...";
-      poll();
-      timer = setInterval(poll, 800);
+function spawnBook(x, y) {
+  for (let i = 0; i < 3; i++) {
+    props.push({
+      type: 'book', x, y,
+      vx: (Math.random()-0.5)*2,
+      vy: -2 - Math.random()*2,
+      age: 0, maxAge: 80,
+      color: ['#8b1a1a','#1a4a8b','#2a6b2a','#6b4a1a','#5a1a6b'][Math.floor(Math.random()*5)],
     });
+  }
+}
 
-    // auto-start if run_id is present
-    if (runInput.value.trim()) {
-      document.getElementById("btnWatch").click();
+function spawnInkDrop(x, y) {
+  props.push({ type:'ink', x, y, vy: 1.5+Math.random(), age:0, maxAge:40 });
+}
+
+function spawnStar(x, y) {
+  for (let i = 0; i < 5; i++) {
+    const a = (i/5)*Math.PI*2;
+    props.push({ type:'star', x, y, vx:Math.cos(a)*1.5, vy:Math.sin(a)*1.5-1, age:0, maxAge:50 });
+  }
+}
+
+// ─── DRAW HELPERS ──────────────────────────────
+
+function drawRoom(zone, floorColor, wallColor, label, icon) {
+  // shadow
+  ctx.fillStyle='rgba(0,0,0,0.3)';
+  ctx.fillRect(zone.x+4, zone.y+4, zone.w, zone.h);
+  // wall
+  ctx.fillStyle=wallColor;
+  ctx.fillRect(zone.x, zone.y, zone.w, zone.h);
+  // floor
+  ctx.fillStyle=floorColor;
+  ctx.fillRect(zone.x+4, zone.y+zone.h*0.45, zone.w-8, zone.h*0.55-4);
+  // roof
+  ctx.fillStyle='rgba(0,0,0,0.25)';
+  ctx.fillRect(zone.x, zone.y, zone.w, 10);
+  // border
+  ctx.strokeStyle='rgba(0,0,0,0.5)'; ctx.lineWidth=2;
+  ctx.strokeRect(zone.x+1, zone.y+1, zone.w-2, zone.h-2);
+  // windows
+  ctx.fillStyle='rgba(255,240,150,0.35)';
+  ctx.fillRect(zone.x+12, zone.y+20, 22, 18);
+  ctx.fillRect(zone.x+zone.w-34, zone.y+20, 22, 18);
+  ctx.strokeStyle='rgba(120,80,30,0.6)'; ctx.lineWidth=1;
+  ctx.strokeRect(zone.x+12, zone.y+20, 22, 18);
+  ctx.strokeRect(zone.x+zone.w-34, zone.y+20, 22, 18);
+  // cross on windows
+  ctx.beginPath();
+  ctx.moveTo(zone.x+23, zone.y+20); ctx.lineTo(zone.x+23, zone.y+38);
+  ctx.moveTo(zone.x+12, zone.y+29); ctx.lineTo(zone.x+34, zone.y+29);
+  ctx.moveTo(zone.x+zone.w-23, zone.y+20); ctx.lineTo(zone.x+zone.w-23, zone.y+38);
+  ctx.moveTo(zone.x+zone.w-34, zone.y+29); ctx.lineTo(zone.x+zone.w-12, zone.y+29);
+  ctx.stroke();
+  // icon
+  ctx.font = '22px serif'; ctx.textAlign='center';
+  ctx.fillText(icon, zone.x+zone.w/2, zone.y+zone.h*0.28);
+  // label
+  ctx.fillStyle='rgba(0,0,0,0.75)';
+  ctx.fillRect(zone.x+zone.w/2-32, zone.y-14, 64, 13);
+  ctx.fillStyle='#ffd700'; ctx.font='bold 9px "Courier New"';
+  ctx.fillText(label, zone.x+zone.w/2, zone.y-3);
+  ctx.textAlign='left';
+}
+
+function drawBookshelf(x, y, w) {
+  // shelf board
+  ctx.fillStyle='#7a4f2a';
+  ctx.fillRect(x, y, w, 6);
+  // books
+  let bx = x+2;
+  const bookDefs = [
+    {w:6,h:22,c:'#8b1a1a'},{w:5,h:18,c:'#1a4a8b'},{w:7,h:26,c:'#2a6b2a'},
+    {w:5,h:20,c:'#6b4a1a'},{w:6,h:24,c:'#5a1a6b'},{w:4,h:16,c:'#8b6a1a'},
+    {w:6,h:22,c:'#1a5a5a'},{w:5,h:19,c:'#6b2a2a'},
+  ];
+  for (const b of bookDefs) {
+    if (bx + b.w > x+w-2) break;
+    ctx.fillStyle=b.c;
+    ctx.fillRect(bx, y-b.h, b.w, b.h);
+    ctx.fillStyle='rgba(255,255,255,0.08)';
+    ctx.fillRect(bx, y-b.h, 2, b.h);
+    bx += b.w+1;
+  }
+}
+
+function drawDesk(x, y, w, h) {
+  ctx.fillStyle='#5c3a1e';
+  ctx.fillRect(x, y, w, h);
+  ctx.fillStyle='rgba(255,200,100,0.06)';
+  ctx.fillRect(x+2, y+2, w-4, h-4);
+  ctx.strokeStyle='rgba(0,0,0,0.4)'; ctx.lineWidth=1;
+  ctx.strokeRect(x, y, w, h);
+  // legs
+  ctx.fillStyle='#4a2e14';
+  ctx.fillRect(x+4, y+h, 6, 10);
+  ctx.fillRect(x+w-10, y+h, 6, 10);
+}
+
+function drawNotebook(x, y, hasLines) {
+  ctx.fillStyle='#e8d5a0'; ctx.fillRect(x, y, 36, 46);
+  ctx.strokeStyle='#c8a860'; ctx.lineWidth=1; ctx.strokeRect(x, y, 36, 46);
+  ctx.fillStyle='#b8982a'; ctx.fillRect(x, y, 4, 46);
+  if (hasLines) {
+    ctx.fillStyle='rgba(100,80,40,0.3)';
+    for (let i=0;i<6;i++) ctx.fillRect(x+7, y+8+i*6, 24, 1.5);
+  }
+}
+
+function drawOpenBook(x, y, scale=1) {
+  ctx.save(); ctx.translate(x,y); ctx.scale(scale,scale);
+  ctx.fillStyle='#f0e0c0';
+  ctx.beginPath(); ctx.ellipse(0, 0, 22, 14, 0, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#c8a060'; ctx.lineWidth=1; ctx.stroke();
+  ctx.fillStyle='rgba(100,80,40,0.2)';
+  ctx.beginPath(); ctx.moveTo(0,-14); ctx.lineTo(0,14); ctx.stroke();
+  for (let i=-1;i<=1;i+=2) {
+    ctx.fillStyle='rgba(100,80,40,0.15)';
+    for (let j=0;j<3;j++) ctx.fillRect(i*3, -8+j*5, i*16, 1.5);
+  }
+  ctx.restore();
+}
+
+function drawCandle(x, y, t) {
+  ctx.fillStyle='#f0e0c0'; ctx.fillRect(x-3, y, 6, 14);
+  const flicker = Math.sin(t*0.15)*0.3;
+  ctx.fillStyle=`rgba(255,${150+Math.sin(t*0.1)*30},50,0.9)`;
+  ctx.beginPath(); ctx.ellipse(x, y-6, 3+flicker, 7, 0, 0, Math.PI*2); ctx.fill();
+  // glow
+  ctx.fillStyle='rgba(255,150,50,0.06)';
+  ctx.beginPath(); ctx.arc(x, y-6, 30, 0, Math.PI*2); ctx.fill();
+}
+
+function drawFloor() {
+  // stone floor tiles
+  ctx.fillStyle='#2a2218';
+  ctx.fillRect(0, H*0.58, W, H*0.42);
+  ctx.strokeStyle='rgba(0,0,0,0.3)'; ctx.lineWidth=1;
+  const tileS = 40;
+  for (let tx=0; tx<W; tx+=tileS) {
+    for (let ty=Math.floor(H*0.58/tileS)*tileS; ty<H; ty+=tileS) {
+      ctx.strokeRect(tx, ty, tileS, tileS);
     }
-  </script>
+  }
+  // path between rooms
+  ctx.fillStyle='rgba(200,160,80,0.08)';
+  ctx.fillRect(0, H*0.55, W, H*0.1);
+}
+
+function drawBackground() {
+  // sky/bg
+  ctx.fillStyle='#0d1020';
+  ctx.fillRect(0, 0, W, H*0.62);
+  // stars
+  ctx.fillStyle='rgba(255,255,255,0.4)';
+  const stars=[[50,30],[120,15],[200,40],[350,20],[500,35],[600,10],[700,28],[750,45],[820,18],[880,36]];
+  for (const [sx,sy] of stars) {
+    if (sx < W) { ctx.beginPath(); ctx.arc(sx,sy,1,0,Math.PI*2); ctx.fill(); }
+  }
+}
+
+// ─── DRAW ELF ─────────────────────────────────
+function drawElf(elf, gt) {
+  elf.tick++;
+  const t = elf.tick;
+  const {x, y, color, hair, action, facing, name} = elf;
+  const isMoving = (Math.abs(elf.tx-elf.x)>2 || Math.abs(elf.ty-elf.y)>2);
+
+  // shadow
+  ctx.fillStyle='rgba(0,0,0,0.25)';
+  ctx.beginPath(); ctx.ellipse(x, y+2, 12, 4, 0, 0, Math.PI*2); ctx.fill();
+
+  // legs
+  const legSwing = isMoving ? Math.sin(t*0.3)*8 : 0;
+  ctx.fillStyle='#2a2a5a';
+  ctx.save(); ctx.translate(x, y);
+  ctx.fillRect(-8, 2, 7, 14 + legSwing*facing);
+  ctx.fillRect(1,  2, 7, 14 - legSwing*facing);
+  ctx.restore();
+
+  // body
+  ctx.fillStyle=color;
+  ctx.fillRect(x-9, y-12, 18, 16);
+  // belt
+  ctx.fillStyle='rgba(0,0,0,0.35)';
+  ctx.fillRect(x-9, y, 18, 3);
+
+  // arms
+  const armSwing = isMoving ? Math.sin(t*0.3)*10 : 0;
+  let leftArm=0, rightArm=0;
+  if (action==='read')    { leftArm= -20; rightArm= -15; }
+  else if (action==='write')   { leftArm= -10; rightArm= 20; }
+  else if (action==='inspect') { leftArm= -15; rightArm= -30; }
+  else { leftArm= armSwing*facing; rightArm= -armSwing*facing; }
+
+  ctx.fillStyle=color;
+  ctx.fillRect(x-14, y-10+leftArm,  6, 10);
+  ctx.fillRect(x+8,  y-10+rightArm, 6, 10);
+
+  // head
+  ctx.fillStyle='#f0c080'; ctx.fillRect(x-8, y-26, 16, 16);
+  // hair
+  ctx.fillStyle=hair;
+  ctx.fillRect(x-8, y-26, 16, 5);
+  ctx.fillRect(facing>0 ? x-10 : x+8-2, y-24, 4, 8);
+  // pointy ears
+  ctx.fillStyle='#f0c080';
+  ctx.beginPath();
+  ctx.moveTo(x-8,y-22); ctx.lineTo(x-13,y-28); ctx.lineTo(x-8,y-18); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(x+8,y-22); ctx.lineTo(x+13,y-28); ctx.lineTo(x+8,y-18); ctx.fill();
+  // eyes
+  ctx.fillStyle='#1a1a1a';
+  if (facing>0) { ctx.fillRect(x+1,y-18,2,2); ctx.fillRect(x+5,y-18,2,2); }
+  else          { ctx.fillRect(x-7,y-18,2,2); ctx.fillRect(x-3,y-18,2,2); }
+
+  // ── PROPS held by elf ──
+  if (action==='read' || action==='walk_read') {
+    drawOpenBook(x+facing*4, y-8, 0.85);
+    // spawn books from shelf occasionally
+    if (t%60===0) spawnBook(x, y-20);
+  }
+  if (action==='write') {
+    // quill in hand
+    ctx.save(); ctx.translate(x+10, y-8+rightArm);
+    ctx.rotate(-0.6);
+    ctx.fillStyle='#f0e0a0'; ctx.fillRect(-1, -12, 2, 14);
+    ctx.fillStyle='#ffffff'; ctx.fillRect(-1, -16, 2, 6);
+    ctx.restore();
+    // notebook on desk (drawn separately)
+    if (t%25===0) spawnInkDrop(x+8, y-4);
+  }
+  if (action==='inspect') {
+    // magnifying glass
+    ctx.save(); ctx.translate(x+facing*12, y-16+rightArm);
+    ctx.strokeStyle='#aaa'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(6,6); ctx.lineTo(12,12); ctx.stroke();
+    ctx.restore();
+    if (t%40===0) spawnStar(x, y-30);
+  }
+
+  // ── IDLE bounce ──
+  // (already handled by action-specific arms)
+
+  // ── DONE checkmark ──
+  if (action==='done') {
+    ctx.fillStyle='#44ff88'; ctx.font='bold 14px serif';
+    ctx.textAlign='center'; ctx.fillText('✓', x, y-32); ctx.textAlign='left';
+  }
+
+  // name tag
+  const nw = name.length * 6 + 8;
+  ctx.fillStyle='rgba(0,0,0,0.8)'; ctx.fillRect(x-nw/2, y-42, nw, 12);
+  ctx.fillStyle='#ffd700'; ctx.font='bold 8px "Courier New"';
+  ctx.textAlign='center'; ctx.fillText(name, x, y-32); ctx.textAlign='left';
+
+  // speech bubble
+  if (elf.speech && elf.speechAge > 0) {
+    elf.speechAge--;
+    const sw = Math.min(elf.speech.length*6.2+16, 160);
+    const sh = 22;
+    const bx = Math.max(4, Math.min(x - sw/2, W - 240 - sw - 4));
+    const by = y - 72;
+    ctx.fillStyle='rgba(8,16,32,0.92)';
+    ctx.strokeStyle='#5a8acc'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.rect(bx, by, sw, sh); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='rgba(8,16,32,0.92)';
+    ctx.beginPath(); ctx.moveTo(x-4,by+sh); ctx.lineTo(x+4,by+sh); ctx.lineTo(x,by+sh+7); ctx.fill();
+    ctx.strokeStyle='#5a8acc'; ctx.lineWidth=1; ctx.stroke();
+    ctx.fillStyle='#e8e0c8'; ctx.font='10px "Courier New"';
+    ctx.textAlign='center'; ctx.fillText(elf.speech.slice(0,22), bx+sw/2, by+14); ctx.textAlign='left';
+  }
+}
+
+// ─── DRAW PROPS ───────────────────────────────
+function updateAndDrawProps() {
+  for (let i = props.length-1; i >= 0; i--) {
+    const p = props[i];
+    p.age++;
+    if (p.age > p.maxAge) { props.splice(i,1); continue; }
+    const a = 1 - p.age/p.maxAge;
+    p.x += p.vx || 0;
+    p.y += p.vy || 0;
+    if (p.vy !== undefined && p.type!=='ink') p.vy += 0.08; // gravity
+
+    if (p.type==='book') {
+      ctx.globalAlpha=a;
+      ctx.fillStyle=p.color;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.age*0.1);
+      ctx.fillRect(-4,-6,8,10); ctx.restore();
+      ctx.globalAlpha=1;
+    } else if (p.type==='ink') {
+      ctx.globalAlpha=a;
+      ctx.fillStyle='#1a0a40';
+      ctx.beginPath(); ctx.ellipse(p.x, p.y, 2, 3+p.age*0.05, 0, 0, Math.PI*2); ctx.fill();
+      ctx.globalAlpha=1;
+    } else if (p.type==='star') {
+      ctx.globalAlpha=a;
+      ctx.fillStyle='#ffd700';
+      ctx.font='12px serif'; ctx.textAlign='center';
+      ctx.fillText('✦', p.x, p.y);
+      ctx.textAlign='left'; ctx.globalAlpha=1;
+    }
+  }
+}
+
+// ─── MAIN DRAW ────────────────────────────────
+let gt = 0;
+
+function draw() {
+  gt++;
+  ctx.clearRect(0, 0, W, H);
+  drawBackground();
+  drawFloor();
+
+  // ── Library room ──
+  const lib = zones.library;
+  if (lib) {
+    drawRoom(lib, '#5a3a10', '#3a2208', 'LIBRARY', '📚');
+    // bookshelves inside
+    drawBookshelf(lib.x+8,  lib.y+lib.h*0.42, lib.w*0.42);
+    drawBookshelf(lib.x+lib.w*0.52, lib.y+lib.h*0.42, lib.w*0.44);
+    // candles
+    drawCandle(lib.x+16, lib.y+lib.h*0.75, gt);
+    drawCandle(lib.x+lib.w-16, lib.y+lib.h*0.75, gt+20);
+  }
+
+  // ── Scriptorium ──
+  const scr = zones.scriptorium;
+  if (scr) {
+    drawRoom(scr, '#1e3218', '#0e2010', 'SCRIPTORIUM', '✍️');
+    // desk
+    drawDesk(scr.x+scr.w*0.15, scr.y+scr.h*0.45, scr.w*0.7, 12);
+    // notebook on desk
+    drawNotebook(scr.x+scr.w*0.35, scr.y+scr.h*0.3,
+      ELVES.scribe.action==='write'||ELVES.scribe.action==='done');
+    drawCandle(scr.x+16, scr.y+scr.h*0.75, gt+10);
+    drawCandle(scr.x+scr.w-16, scr.y+scr.h*0.75, gt+30);
+  }
+
+  // ── Chamber ──
+  const chm = zones.chamber;
+  if (chm) {
+    drawRoom(chm, '#182828', '#0a1a1a', 'CHAMBER', '🔍');
+    // inspection table
+    drawDesk(chm.x+chm.w*0.15, chm.y+chm.h*0.45, chm.w*0.7, 12);
+    // notebook being inspected
+    if (ELVES.guard.action==='inspect'||ELVES.guard.action==='done') {
+      drawNotebook(chm.x+chm.w*0.35, chm.y+chm.h*0.3, true);
+    }
+    drawCandle(chm.x+16, chm.y+chm.h*0.75, gt+15);
+    drawCandle(chm.x+chm.w-16, chm.y+chm.h*0.75, gt+35);
+  }
+
+  // ── Elves ──
+  updateAndDrawProps();
+  Object.values(ELVES).forEach(e => {
+    // move
+    const dx=e.tx-e.x, dy=e.ty-e.y, dist=Math.sqrt(dx*dx+dy*dy);
+    if (dist > 1.5) {
+      e.x += (dx/dist)*2.2; e.y += (dy/dist)*2.2;
+      if (Math.abs(dx)>1) e.facing = dx>0?1:-1;
+    } else {
+      e.x=e.tx; e.y=e.ty;
+    }
+    drawElf(e, gt);
+  });
+
+  requestAnimationFrame(draw);
+}
+
+// ─── RESIZE ───────────────────────────────────
+function resize() {
+  const wrap = canvas.parentElement;
+  W = wrap.clientWidth - 230;
+  H = wrap.clientHeight;
+  canvas.width = W; canvas.height = H;
+  computeZones();
+  // update elf home positions
+  ELVES.archivist.homeX = W*0.14; ELVES.archivist.homeY = H*0.82;
+  ELVES.scribe.homeX    = W*0.50; ELVES.scribe.homeY    = H*0.82;
+  ELVES.guard.homeX     = W*0.80; ELVES.guard.homeY     = H*0.82;
+}
+window.addEventListener('resize', () => { resize(); });
+
+// ─── GAME ACTIONS ─────────────────────────────
+const ELF_FOR_STAGE = {
+  ingest:'archivist', pdp_fetch:'archivist', pdp_fetch_ok:'archivist',
+  amazon_fetch:'archivist', amazon_fetch_ok:'archivist',
+  clean_source:'archivist', clean_source_ok:'archivist',
+  retrieve_guidelines:'archivist',
+  helium10_analyze:'archivist', helium10_analyze_ok:'archivist',
+  extract_facts:'archivist', extract_facts_ok:'archivist',
+  build_blueprint:'scribe', build_blueprint_ok:'scribe',
+  generate_content:'scribe', repair_content:'scribe', generate_ok:'scribe',
+  validate_output:'guard', validate_ok:'guard',
+  decide_next_action:'scribe', finalize:'scribe',
+  n8n_push:'scribe', n8n_push_done:'scribe',
+};
+
+const ACTION_FOR_STAGE = {
+  pdp_fetch:'read', amazon_fetch:'read', clean_source:'read',
+  retrieve_guidelines:'read', helium10_analyze:'read', extract_facts:'read',
+  build_blueprint:'write', generate_content:'write', repair_content:'write',
+  finalize:'write',
+  validate_output:'inspect', validate_ok:'inspect',
+  decide_next_action:'read',
+};
+
+const SPEECH_FOR_STAGE = {
+  ingest:'Gathering sources…', pdp_fetch:'Off to the library!',
+  pdp_fetch_ok:'Got the product scroll!', amazon_fetch:'Searching Amazon…',
+  amazon_fetch_ok:'Amazon page captured!', clean_source:'Cleaning the text…',
+  retrieve_guidelines:'Checking the rulebook…', helium10_analyze:'Reading keyword runes…',
+  helium10_analyze_ok:'Keywords deciphered!', extract_facts:'Extracting facts…',
+  extract_facts_ok:'Notes complete!', build_blueprint:'Drawing up the plan…',
+  build_blueprint_ok:'Blueprint ready!', generate_content:'Writing the listing!',
+  repair_content:'Correcting errors…', generate_ok:'Listing written!',
+  validate_output:'Inspecting the scroll…', validate_ok:'All checks pass!',
+  decide_next_action:'What shall I do next?', finalize:'Sealing the document!',
+  n8n_push:'Sending by courier!', n8n_push_done:'Delivered!',
+};
+
+const ELF_ACTIVE_MAP = {archivist:'archivist',scribe:'scribe',guard:'guard',planner:'scribe'};
+
+function getWorkPos(elfKey, action) {
+  const z = zones;
+  if (elfKey==='archivist') {
+    const lib=z.library;
+    return { x: lib.x+lib.w*0.5, y: lib.y+lib.h*0.65 };
+  }
+  if (elfKey==='scribe') {
+    const scr=z.scriptorium;
+    return { x: scr.x+scr.w*0.5, y: scr.y+scr.h*0.65 };
+  }
+  if (elfKey==='guard') {
+    const chm=z.chamber;
+    return { x: chm.x+chm.w*0.5, y: chm.y+chm.h*0.65 };
+  }
+  return {x:300,y:400};
+}
+
+function activateElf(rawElf, stage) {
+  const elfKey = ELF_ACTIVE_MAP[rawElf] || rawElf;
+  const elf = ELVES[elfKey]; if(!elf) return;
+  const action = ACTION_FOR_STAGE[stage] || 'walk';
+  const pos = getWorkPos(elfKey, action);
+  elf.tx = pos.x; elf.ty = pos.y;
+  elf.action = action || 'idle';
+  elf.speech = SPEECH_FOR_STAGE[stage] || stage || '';
+  elf.speechAge = 220;
+  // update dialogue box
+  document.getElementById('dlgElfName').textContent = elf.name;
+  document.getElementById('dlgText').textContent = elf.speech;
+}
+
+function markAllDone() {
+  Object.values(ELVES).forEach(e => {
+    e.action='done';
+    e.tx=e.homeX; e.ty=e.homeY;
+  });
+}
+
+// ─── POLLING ──────────────────────────────────
+const API_BASE="";
+const runInput=document.getElementById('run_id');
+const urlParams=new URLSearchParams(location.search);
+if(urlParams.get('run_id'))runInput.value=urlParams.get('run_id');
+
+let pollTimer=null, replayTimer=null, lastCount=0, startTime=null;
+
+function formatTs(ts){try{return new Date(ts).toLocaleTimeString('en-GB',{hour12:false});}catch{return '';}}
+
+function addLog(ev){
+  const c=document.getElementById('logScroll');
+  const d=document.createElement('div'); d.className='log-row';
+  d.innerHTML=`<span class="lt">${formatTs(ev.ts)}</span><span class="lb ${ev.elf}">${ev.elf}</span><span class="lm">${ev.message}</span>`;
+  c.appendChild(d); c.scrollTop=c.scrollHeight;
+}
+
+function applyEvent(ev){
+  lastCount++;
+  addLog(ev);
+  activateElf(ev.elf, ev.stage);
+  document.getElementById('hudEvents').textContent=lastCount;
+}
+
+function replayNext(events, idx, run){
+  if(idx>=events.length){
+    const vs=(run.result||{}).validation_status;
+    if(vs){
+      const b=document.getElementById('valBadge');
+      b.textContent=vs==='PASS'?'✓ VALIDATION PASS':'✗ VALIDATION FAIL';
+      b.className='val-badge '+(vs==='PASS'?'pass':'fail');
+    }
+    setTimeout(()=>{ markAllDone(); setPip('done','DONE'); }, 2000);
+    return;
+  }
+  applyEvent(events[idx]);
+  replayTimer=setTimeout(()=>replayNext(events,idx+1,run), 1600);
+}
+
+function setPip(cls,txt){
+  const pip=document.getElementById('pip');
+  pip.className='pip '+cls; pip.textContent=txt;
+}
+
+function render(run){
+  const events=run.event_log||[];
+  if((run.status==='DONE'||run.status==='ERROR')&&lastCount===0){
+    clearInterval(pollTimer);pollTimer=null;
+    setPip('running','REPLAYING');
+    document.getElementById('logScroll').innerHTML='';
+    replayNext(events,0,run); return;
+  }
+  if(run.status==='RUNNING') setPip('running','RUNNING');
+  for(let i=lastCount;i<events.length;i++) applyEvent(events[i]);
+  const vs=(run.result||{}).validation_status;
+  if(vs){
+    const b=document.getElementById('valBadge');
+    b.textContent=vs==='PASS'?'✓ VALIDATION PASS':'✗ VALIDATION FAIL';
+    b.className='val-badge '+(vs==='PASS'?'pass':'fail');
+  }
+  if(run.status==='DONE'||run.status==='ERROR'){
+    clearInterval(pollTimer);pollTimer=null;
+    markAllDone(); setPip('done','DONE');
+  }
+}
+
+async function poll(){
+  const id=runInput.value.trim(); if(!id)return;
+  try{
+    const res=await fetch(`${API_BASE}/runs/${encodeURIComponent(id)}`);
+    if(!res.ok)return;
+    render(await res.json());
+  }catch(e){}
+}
+
+document.getElementById('btnWatch').addEventListener('click',()=>{
+  if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
+  if(replayTimer){clearTimeout(replayTimer);replayTimer=null;}
+  lastCount=0; startTime=Date.now();
+  document.getElementById('logScroll').innerHTML='';
+  document.getElementById('valBadge').className='val-badge';
+  Object.values(ELVES).forEach(e=>{
+    e.x=e.homeX;e.y=e.homeY;e.tx=e.homeX;e.ty=e.homeY;
+    e.action='idle';e.speech='';e.speechAge=0;
+  });
+  props.length=0;
+  setPip('running','WATCHING');
+  poll(); pollTimer=setInterval(poll,800);
+});
+
+setInterval(()=>{if(startTime)document.getElementById('hudClock').textContent=Math.floor((Date.now()-startTime)/1000)+'s';},1000);
+
+// ─── BOOT ─────────────────────────────────────
+resize();
+// set initial home positions after first resize
+Object.values(ELVES).forEach(e=>{e.x=e.homeX;e.y=e.homeY;e.tx=e.homeX;e.ty=e.homeY;});
+draw();
+if(runInput.value.trim()) document.getElementById('btnWatch').click();
+</script>
+
+<!-- small dialogue bar at bottom of canvas -->
+<div id="dlgBar" style="position:fixed;bottom:0;left:0;right:230px;background:#0d1420;border-top:2px solid #4a7aaa;padding:6px 16px;display:flex;gap:10px;align-items:center;z-index:15;">
+  <span id="dlgElfName" style="font-size:11px;font-weight:bold;color:#ffd700;letter-spacing:.1em;min-width:80px;">—</span>
+  <span id="dlgText" style="font-size:12px;color:#e8e0c8;font-style:italic;">Waiting for orders…</span>
+</div>
+
 </body>
 </html>

@@ -296,14 +296,14 @@
       const productInfoFile = document.getElementById('product_info_file').files[0] || null;
       const heliumCsv       = document.getElementById('helium10_csv').files[0] || null;
       const reviewsFile     = document.getElementById('reviews_file').files[0] || null;
-      const outputLang      = langInput.value || 'en';   // ← language from picker
+      const outputLang      = langInput.value || 'en';
 
       if (amazonUrl)       fd.append('amazon_url', amazonUrl);
       if (pdpUrl)          fd.append('pdp_url', pdpUrl);
       if (productInfoFile) fd.append('product_info_file', productInfoFile);
       if (heliumCsv)       fd.append('helium10_csv', heliumCsv);
       if (reviewsFile)     fd.append('reviews_file', reviewsFile);
-      fd.set('output_lang', outputLang);   // ← always sent
+      fd.set('output_lang', outputLang);
 
       if (!amazonUrl && !pdpUrl && !productInfoFile) {
         showError('Provide at least one of: Amazon URL, PDP URL, or a product info file.');
@@ -313,7 +313,11 @@
       submitBtn.disabled = true;
       setStatus(`Submitting… (${outputLang.toUpperCase()})`);
 
+      // ── Open elves window immediately so it's ready ──
+      const elvesWin = window.open('/elves', 'elf_workshop');
+
       try {
+        // ── FIX: always use /generate_upload (multipart) ──
         const res  = await fetch('/generate_upload', { method: 'POST', body: fd });
         const text = await res.text();
 
@@ -322,6 +326,11 @@
         catch { throw new Error(`Non-JSON response (${res.status}). Body:\n\n${text}`); }
 
         if (!res.ok) throw new Error(`HTTP ${res.status}\n\n${JSON.stringify(data, null, 2)}`);
+
+        // ── Send run_id to elves window ──
+        if (data.run_id && elvesWin) {
+          elvesWin.location.href = `/elves?run_id=${encodeURIComponent(data.run_id)}`;
+        }
 
         setStatus('Done.');
         renderResult(data);
